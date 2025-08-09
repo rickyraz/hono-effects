@@ -1,18 +1,37 @@
 import { serve } from "@hono/node-server"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
-import { Effect, Layer } from "effect"
-import { AppConfig } from "./config/env.js"
-import { AppLive } from "./layers/app.js"
+import { logger } from "hono/logger"
+import { prettyJSON } from "hono/pretty-json"
+import { secureHeaders } from "hono/secure-headers"
+import { timing } from "hono/timing"
+import { Effect } from "effect"
+import { AppLive, AppConfigService } from "./layers/app.js"
 import { usersRouter } from "./routes/users.js"
 import { healthRouter } from "./routes/health.js"
-import { requestLoggerMiddleware } from "./middleware/request-logger.js"
 import { Logger } from "./services/logger.js"
 
 const app = new Hono()
 
-app.use("*", cors())
-app.use("*", requestLoggerMiddleware())
+// Security middleware
+app.use("*", secureHeaders())
+
+// CORS middleware
+app.use("*", cors({
+  origin: ["http://localhost:3000", "http://localhost:5173"],
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}))
+
+// Performance middleware
+app.use("*", timing())
+
+// Development middleware (JSON formatting)
+app.use("*", prettyJSON())
+
+// Logging middleware (Hono built-in only)
+app.use("*", logger())
 
 app.route("/api/users", usersRouter)
 app.route("/health", healthRouter)
@@ -31,7 +50,8 @@ app.get("/", (c) => {
 
 const program = Effect.gen(function* () {
   const logger = yield* Logger
-  const port = yield* AppConfig.port
+  const config = yield* AppConfigService
+  const port = yield* config.port
   
   yield* logger.info("Starting server", { port })
   
@@ -58,7 +78,7 @@ const program = Effect.gen(function* () {
 })
 
 const runnable = program.pipe(
-  Effect.provide(AppLive),
+  Effect.provide(AppLive), //  langsung dapet semua dari semua Toko(layer) yang di mergeAll menjadi Supermarket
   Effect.tapErrorCause((cause) => 
     Effect.sync(() => console.error("Application failed to start:", cause))
   )

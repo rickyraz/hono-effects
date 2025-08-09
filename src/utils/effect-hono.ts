@@ -1,4 +1,4 @@
-import { Effect, Exit } from "effect"
+import { Console, Effect, Exit } from "effect"
 import { Context as HonoContext } from "hono"
 import { AppLive } from "../layers/app.js"
 import { DatabaseError } from "../services/database.js"
@@ -43,3 +43,37 @@ export const runEffect = <E, A, R = any>(
     })
   }
 }
+// const complexOperation = (input: string) =>
+//   Effect.gen(function* () {
+//     try {
+//       // Operasi yang mungkin throw error non-Effect
+//       const parsed = JSON.parse(input)
+      
+//       // Lanjut dengan Effect operations
+//       const result = yield* Effect.succeed(parsed.value)
+//       yield* Console.log(`Success: ${result}`)
+      
+//       return result
+//     } catch (error) {
+//       // Handle parsing error, lalu convert ke Effect error
+//       return yield* Effect.fail(new Error(`Parse failed: ${error}`))
+//     }
+//   })
+
+const parseJson = (json: string) =>
+  Effect.try(() => JSON.parse(json))
+
+// Untuk async operations yang bisa throw  
+const fetchData = (url: string) =>
+  Effect.tryPromise(() => fetch(url))
+
+// Komposisi dengan error handling
+const safeOperation = (input: string) =>
+  parseJson(input)
+    .pipe(
+      Effect.flatMap(data => Effect.succeed(data.value)),
+      Effect.tap(result => Console.log(`Success: ${result}`)),
+      Effect.catchAll(error => 
+        Effect.fail(new Error(`Operation failed: ${error.message}`))
+      )
+    )
